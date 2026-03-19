@@ -1,16 +1,9 @@
 """
 Mouse Recorder & Player
 -----------------------
-Usage:
-  python mouse_recorder.py record [output.json]
-  python mouse_recorder.py play   [input.json]
-
-Record mode: Move your mouse and press ENTER to log the current position.
-             Press ESC or CTRL+C to stop and save.
-Play mode:   Reads a JSON file and clicks each recorded position in order.
+Run the script and follow the interactive prompts.
 """
 
-import sys
 import json
 import time
 import threading
@@ -24,7 +17,7 @@ try:
     from pynput.mouse import Button, Controller as MouseController
 except ImportError:
     print("Missing dependency. Install with:\n  pip install pynput")
-    sys.exit(1)
+    raise SystemExit(1)
 
 DEFAULT_FILE = "mouse_positions.json"
 
@@ -52,13 +45,13 @@ def record(output_file: str):
             print(f"  [{len(positions):>3}] Logged  x={pos[0]}, y={pos[1]}")
         elif key == keyboard.Key.esc:
             stop_event.set()
-            return False  # stop listener
+            return False
 
     listener = keyboard.Listener(on_press=on_press)
     listener.start()
 
     try:
-        stop_event.wait()          # block until ESC
+        stop_event.wait()
     except KeyboardInterrupt:
         pass
     finally:
@@ -80,14 +73,14 @@ def play(input_file: str, delay: float = 0.5):
     path = Path(input_file)
     if not path.exists():
         print(f"Error: file not found → {input_file}")
-        sys.exit(1)
+        return
 
     with open(path) as f:
         positions = json.load(f)
 
     if not positions:
         print("No positions found in the file.")
-        sys.exit(0)
+        return
 
     print("=" * 50)
     print("  PLAY MODE")
@@ -107,7 +100,7 @@ def play(input_file: str, delay: float = 0.5):
     for i, pos in enumerate(positions, 1):
         x, y = pos["x"], pos["y"]
         ctrl.position = (x, y)
-        time.sleep(0.05)            # small settle time before click
+        time.sleep(0.05)
         ctrl.click(Button.left)
         print(f"  [{i:>3}/{len(positions)}] Clicked  x={x}, y={y}")
         time.sleep(delay)
@@ -116,32 +109,53 @@ def play(input_file: str, delay: float = 0.5):
 
 
 # ---------------------------------------------------------------------------
-# ENTRY POINT
+# INTERACTIVE MENU
 # ---------------------------------------------------------------------------
 
-def usage():
-    print("Usage:")
-    print("  python mouse_recorder.py record [output.json]")
-    print("  python mouse_recorder.py play   [input.json]  [delay_seconds]")
-    sys.exit(1)
+def prompt_file(label: str, default: str) -> str:
+    val = input(f"  {label} [{default}]: ").strip()
+    return val if val else default
+
+
+def prompt_float(label: str, default: float) -> float:
+    while True:
+        val = input(f"  {label} [{default}]: ").strip()
+        if not val:
+            return default
+        try:
+            return float(val)
+        except ValueError:
+            print("  Please enter a valid number.")
+
+
+def main():
+    while True:
+        print("\n" + "=" * 50)
+        print("  MOUSE RECORDER & PLAYER")
+        print("=" * 50)
+        print("  [1] Record mouse positions")
+        print("  [2] Play back mouse positions")
+        print("  [3] Quit")
+        print("=" * 50)
+
+        choice = input("  Choose an option: ").strip()
+
+        if choice == "1":
+            output_file = prompt_file("Output file", DEFAULT_FILE)
+            record(output_file)
+
+        elif choice == "2":
+            input_file = prompt_file("Input file", DEFAULT_FILE)
+            delay = prompt_float("Delay between clicks (seconds)", 0.5)
+            play(input_file, delay)
+
+        elif choice == "3":
+            print("\n  Goodbye!")
+            break
+
+        else:
+            print("\n  Invalid choice. Please enter 1, 2, or 3.")
 
 
 if __name__ == "__main__":
-    args = sys.argv[1:]
-
-    if not args:
-        usage()
-
-    mode = args[0].lower()
-
-    if mode == "record":
-        out = args[1] if len(args) > 1 else DEFAULT_FILE
-        record(out)
-
-    elif mode == "play":
-        inp   = args[1] if len(args) > 1 else DEFAULT_FILE
-        delay = float(args[2]) if len(args) > 2 else 0.5
-        play(inp, delay)
-
-    else:
-        usage()
+    main()
